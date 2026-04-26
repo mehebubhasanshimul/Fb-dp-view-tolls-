@@ -1,10 +1,10 @@
 const express = require('express');
+const axios = require('axios'); // ইমেজ প্রক্সি করার জন্য লাগবে
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.urlencoded({ extended: true }));
 
-// UI এবং লজিক একসাথে
 function getHTML(picUrl, userId, error = '') {
     return `
     <!DOCTYPE html>
@@ -12,67 +12,34 @@ function getHTML(picUrl, userId, error = '') {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>FB DP VIEWER | PRO VERSION</title>
+        <title>FB DP VIEWER | PRO</title>
         <style>
             :root { --primary: #00ff41; --bg: #0a0a0a; --card: #151515; }
             * { margin:0; padding:0; box-sizing:border-box; }
-            body { 
-                font-family: 'Segoe UI', Tahoma, sans-serif; 
-                background-color: var(--bg); 
-                color: white; 
-                min-height: 100vh; 
-                display: flex; justify-content: center; align-items: center; padding: 20px;
-            }
-            .container { 
-                background: var(--card); 
-                border: 1px solid var(--primary); 
-                box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
-                border-radius: 15px; padding: 40px; width: 100%; max-width: 500px; text-align: center;
-            }
-            h1 { color: var(--primary); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; font-size: 22px; }
-            p.tag { color: #888; font-size: 12px; margin-bottom: 25px; }
-            input { 
-                width: 100%; padding: 15px; background: #222; border: 1px solid #444; 
-                border-radius: 8px; color: white; font-size: 16px; outline: none; margin-bottom: 15px;
-                transition: 0.3s;
-            }
-            input:focus { border-color: var(--primary); box-shadow: 0 0 10px rgba(0, 255, 65, 0.3); }
-            button { 
-                width: 100%; padding: 15px; background: var(--primary); color: black; 
-                border: none; border-radius: 8px; font-weight: bold; font-size: 16px; 
-                cursor: pointer; text-transform: uppercase; transition: 0.3s;
-            }
-            button:hover { background: #00cc33; transform: translateY(-2px); }
-            .error { color: #ff4444; margin: 15px 0; font-size: 14px; }
-            .result { margin-top: 30px; animation: fadeIn 0.5s ease; }
-            .result img { 
-                width: 100%; max-width: 250px; border-radius: 12px; 
-                border: 3px solid var(--primary); box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
-            }
-            .info { margin-top: 15px; color: var(--primary); font-family: monospace; }
-            .download-link { 
-                display: inline-block; margin-top: 20px; padding: 10px 20px; 
-                border: 1px solid var(--primary); color: var(--primary); 
-                text-decoration: none; border-radius: 5px; font-size: 14px;
-            }
-            .download-link:hover { background: var(--primary); color: black; }
-            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+            body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+            .container { background: var(--card); border: 1px solid var(--primary); border-radius: 15px; padding: 30px; width: 100%; max-width: 450px; text-align: center; }
+            h1 { color: var(--primary); letter-spacing: 2px; margin-bottom: 20px; font-size: 22px; }
+            input { width: 100%; padding: 12px; background: #222; border: 1px solid #444; border-radius: 8px; color: white; margin-bottom: 15px; outline: none; }
+            button { width: 100%; padding: 12px; background: var(--primary); color: black; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+            button:hover { background: #00cc33; }
+            .result { margin-top: 25px; }
+            .result img { width: 100%; border-radius: 10px; border: 2px solid var(--primary); box-shadow: 0 0 15px rgba(0, 255, 65, 0.3); }
+            .download-btn { display: inline-block; margin-top: 15px; padding: 10px 20px; background: transparent; border: 1px solid var(--primary); color: var(--primary); text-decoration: none; border-radius: 5px; transition: 0.3s; }
+            .download-btn:hover { background: var(--primary); color: black; }
         </style>
     </head>
     <body>
         <div class="container">
             <h1>FB DP VIEWER</h1>
-            <p class="tag">SECURE ACCESS • VERSION 2.0</p>
             <form method="POST">
                 <input type="text" name="fb_link" placeholder="Profile Link or Username" required>
-                <button type="submit">Fetch Data</button>
+                <button type="submit">Fetch Image</button>
             </form>
-            ${error ? `<p class="error">${error}</p>` : ''}
             ${picUrl ? `
                 <div class="result">
-                    <img src="${picUrl}" alt="Profile Picture" referrerpolicy="no-referrer">
-                    <div class="info">TARGET: ${userId}</div>
-                    <a href="${picUrl}" class="download-link" target="_blank">View Full Image</a>
+                    <img src="${picUrl}" alt="DP">
+                    <br>
+                    <a href="${picUrl}" class="download-btn" target="_blank" download="profile.jpg">Download Image</a>
                 </div>
             ` : ''}
         </div>
@@ -80,27 +47,30 @@ function getHTML(picUrl, userId, error = '') {
     </html>`;
 }
 
+// ইমেজ প্রক্সি রুট (এটি ইমেজকে নট ফাউন্ড হওয়া থেকে বাঁচাবে)
+app.get('/proxy-image', async (req, res) => {
+    const imageUrl = req.query.url;
+    try {
+        const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        res.set('Content-Type', 'image/jpeg');
+        res.send(response.data);
+    } catch (e) {
+        res.status(404).send('Image Not Found');
+    }
+});
+
 app.get('/', (req, res) => res.send(getHTML('', '')));
 
 app.post('/', (req, res) => {
     let fbLink = req.body.fb_link.trim();
-    let userId = '';
-
-    // Advanced Regex to extract Username/ID
-    const match = fbLink.match(/(?:https?:\/\/)?(?:www\.)?(?:facebook|fb)\.com\/([a-zA-Z0-9\.]+)/);
-    if (match) {
-        userId = match[1].split('/')[0].replace('profile.php?id=', '');
-    } else {
-        userId = fbLink;
-    }
-
+    let userId = fbLink.includes('facebook.com') ? fbLink.split('/').pop() : fbLink;
+    
     if (userId) {
-        // Redirect URL which works without Access Token
-        const picUrl = `https://www.facebook.com/${userId}/picture?type=large&width=1000&height=1000`;
-        res.send(getHTML(picUrl, userId));
-    } else {
-        res.send(getHTML('', '', 'Invalid Username or Link!'));
+        // প্রক্সি ইউআরএল তৈরি করা হচ্ছে
+        const targetUrl = `https://www.facebook.com/${userId}/picture?type=large&width=800&height=800`;
+        const proxyUrl = `/proxy-image?url=${encodeURIComponent(targetUrl)}`;
+        res.send(getHTML(proxyUrl, userId));
     }
 });
 
-app.listen(port, () => console.log(`Server started at port ${port}`));
+app.listen(port);
